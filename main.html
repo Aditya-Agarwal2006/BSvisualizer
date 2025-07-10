@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Black-Scholes Option Pricing Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .heatmap-container {
+            display: grid;
+            grid-template-columns: repeat(20, 1fr);
+            gap: 2px;
+        }
+        .heatmap-cell {
+            width: 100%;
+            padding-bottom: 100%;
+            position: relative;
+        }
+        .heatmap-cell-tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 5px;
+            border-radius: 5px;
+            font-size: 12px;
+            pointer-events: none;
+            display: none;
+            z-index: 10;
+        }
+        .pnl-chart-container {
+            position: relative;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white p-4 sm:p-6 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl sm:text-4xl font-bold text-cyan-400">Black-Scholes Option Pricing Visualizer</h1>
+            <p class="text-gray-400 mt-2">An interactive tool to understand option pricing and risk.</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Input Controls -->
+            <div class="lg:col-span-1 bg-gray-800 p-6 rounded-xl shadow-lg">
+                <h2 class="text-2xl font-semibold mb-6 text-cyan-300 border-b border-gray-700 pb-2">Parameters</h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label for="ticker" class="block text-sm font-medium text-gray-300">Stock Ticker (e.g., AAPL)</label>
+                        <div class="flex mt-1">
+                            <input type="text" id="ticker" class="w-full bg-gray-700 border border-gray-600 rounded-l-md p-2 text-white focus:ring-cyan-500 focus:border-cyan-500" placeholder="AAPL">
+                            <button id="fetchPriceBtn" class="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-r-md">Fetch</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="assetPrice" class="block text-sm font-medium text-gray-300">Current Asset Price ($)</label>
+                        <input type="number" id="assetPrice" class="mt-1 w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white" value="150">
+                    </div>
+                    <div>
+                        <label for="strikePrice" class="block text-sm font-medium text-gray-300">Strike Price ($)</label>
+                        <input type="number" id="strikePrice" class="mt-1 w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white" value="155">
+                    </div>
+                    <div>
+                        <label for="timeToMaturity" class="block text-sm font-medium text-gray-300">Time to Maturity (Years)</label>
+                        <input type="number" id="timeToMaturity" step="0.01" class="mt-1 w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white" value="0.25">
+                    </div>
+                    <div>
+                        <label for="volatility" class="block text-sm font-medium text-gray-300">Volatility (%)</label>
+                        <input type="number" id="volatility" class="mt-1 w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white" value="25">
+                    </div>
+                    <div>
+                        <label for="interestRate" class="block text-sm font-medium text-gray-300">Risk-Free Interest Rate (%)</label>
+                        <input type="number" id="interestRate" class="mt-1 w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white" value="2">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Outputs -->
+            <div class="lg:col-span-2 space-y-8">
+                <!-- Calculated Values -->
+                <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <h2 class="text-2xl font-semibold mb-4 text-cyan-300 border-b border-gray-700 pb-2">Calculated Option Prices</h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-center">
+                        <div>
+                            <p class="text-lg text-gray-400">Call Value</p>
+                            <p id="callValue" class="text-3xl font-bold text-green-400">$0.00</p>
+                        </div>
+                        <div>
+                            <p class="text-lg text-gray-400">Put Value</p>
+                            <p id="putValue" class="text-3xl font-bold text-red-400">$0.00</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- P&L Visualizer -->
+                <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <h2 class="text-2xl font-semibold mb-4 text-cyan-300 border-b border-gray-700 pb-2">Profit & Loss Visualizer</h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                        <div>
+                            <label for="tradeType" class="block text-sm font-medium text-gray-300">Trade Type</label>
+                            <select id="tradeType" class="mt-1 w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white">
+                                <option value="call">Call</option>
+                                <option value="put">Put</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="tradePrice" class="block text-sm font-medium text-gray-300">Your Trade Price ($)</label>
+                            <input type="number" id="tradePrice" class="mt-1 w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white" placeholder="e.g., 4.50">
+                        </div>
+                        <button id="updatePnlBtn" class="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-md h-10">Update P&L</button>
+                    </div>
+                    <div id="pnlChart" class="pnl-chart-container mt-6"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Heatmaps -->
+        <div class="mt-8 bg-gray-800 p-6 rounded-xl shadow-lg">
+            <h2 class="text-2xl font-semibold mb-6 text-cyan-300 text-center border-b border-gray-700 pb-2">Price Sensitivity Heatmaps</h2>
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                <div>
+                    <h3 class="text-xl font-medium text-center mb-4 text-green-400">Call Price vs. Spot & Volatility</h3>
+                    <div id="callHeatmap" class="heatmap-container"></div>
+                </div>
+                <div>
+                    <h3 class="text-xl font-medium text-center mb-4 text-red-400">Put Price vs. Spot & Volatility</h3>
+                    <div id="putHeatmap" class="heatmap-container"></div>
+                </div>
+            </div>
+             <p class="text-xs text-gray-500 text-center mt-4">X-axis: Spot Price (-20% to +20%). Y-axis: Volatility (-50% to +50%). Hover for details.</p>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const assetPriceEl = document.getElementById('assetPrice');
+        const strikePriceEl = document.getElementById('strikePrice');
+        const timeToMaturityEl = document.getElementById('timeToMaturity');
+        const volatilityEl = document.getElementById('volatility');
+        const interestRateEl = document.getElementById('interestRate');
+        const callValueEl = document.getElementById('callValue');
+        const putValueEl = document.getElementById('putValue');
+        const tickerEl = document.getElementById('ticker');
+        const fetchPriceBtn = document.getElementById('fetchPriceBtn');
+        const updatePnlBtn = document.getElementById('updatePnlBtn');
+        
+        // The URL of the Python backend
+        const API_URL = 'http://127.0.0.1:5000/calculate';
+
+        // Main Calculation and Update Function
+        async function calculateAndDisplay() {
+            const payload = {
+                assetPrice: parseFloat(assetPriceEl.value),
+                strikePrice: parseFloat(strikePriceEl.value),
+                timeToMaturity: parseFloat(timeToMaturityEl.value),
+                volatility: parseFloat(volatilityEl.value),
+                interestRate: parseFloat(interestRateEl.value),
+            };
+
+            // Validate that all inputs are numbers
+            if (Object.values(payload).some(isNaN)) {
+                callValueEl.textContent = '$--';
+                putValueEl.textContent = '$--';
+                return;
+            }
+
+            try {
+                // Send the parameters to the Python backend
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                // Get the calculated data back from the server
+                const data = await response.json();
+
+                // Update the UI with the received data
+                callValueEl.textContent = `$${data.callValue.toFixed(2)}`;
+                putValueEl.textContent = `$${data.putValue.toFixed(2)}`;
+                
+                createHeatmap('#callHeatmap', data.callHeatmap, 'green');
+                createHeatmap('#putHeatmap', data.putHeatmap, 'red');
+                updatePnlChart();
+
+            } catch (error) {
+                console.error("Error fetching data from backend:", error);
+                alert("Could not connect to the Python backend. Make sure it's running and that there are no CORS errors in the console.");
+                callValueEl.textContent = 'Error';
+                putValueEl.textContent = 'Error';
+            }
+        }
+
+        // Heatmap Generation (D3.js)
+        function createHeatmap(containerId, data, color) {
+            const container = d3.select(containerId);
+            container.html(''); // Clear previous heatmap
+
+            const maxPrice = d3.max(data, d => d.price);
+            const colorScale = d3.scaleLinear()
+                .domain([0, maxPrice])
+                .range(['#1a202c', color === 'green' ? '#48bb78' : '#f56565']);
+
+            // Reuse or create the tooltip
+            let tooltip = d3.select('body').select('.heatmap-cell-tooltip');
+            if (tooltip.empty()) {
+                tooltip = d3.select('body').append('div')
+                    .attr('class', 'heatmap-cell-tooltip');
+            }
+
+            container.selectAll('div')
+                .data(data)
+                .enter()
+                .append('div')
+                .attr('class', 'heatmap-cell')
+                .style('background-color', d => colorScale(d.price))
+                .on('mouseover', (event, d) => {
+                    tooltip.style('display', 'block')
+                           .html(`Spot: $${d.S.toFixed(2)}<br>Vol: ${(d.v * 100).toFixed(2)}%<br>Price: $${d.price.toFixed(2)}`);
+                })
+                .on('mousemove', (event) => {
+                    tooltip.style('left', (event.pageX + 10) + 'px')
+                           .style('top', (event.pageY - 20) + 'px');
+                })
+                .on('mouseout', () => {
+                    tooltip.style('display', 'none');
+                });
+        }
+        
+        // P&L Chart (D3.js)
+        function updatePnlChart() {
+            const S_base = parseFloat(assetPriceEl.value);
+            const K = parseFloat(strikePriceEl.value);
+            const tradeType = document.getElementById('tradeType').value;
+            const tradePrice = parseFloat(document.getElementById('tradePrice').value);
+
+            if (isNaN(S_base) || isNaN(K) || isNaN(tradePrice)) {
+                 d3.select("#pnlChart").html('<p class="text-center text-gray-500">Enter a trade price to see P&L.</p>');
+                return;
+            }
+
+            const spotRange = Array.from({ length: 101 }, (_, i) => S_base * (0.7 + (i / 100) * 0.6));
+            const pnlData = spotRange.map(S_at_expiry => {
+                let intrinsicValue = 0;
+                if (tradeType === 'call') {
+                    intrinsicValue = Math.max(0, S_at_expiry - K);
+                } else { // put
+                    intrinsicValue = Math.max(0, K - S_at_expiry);
+                }
+                return { spot: S_at_expiry, pnl: intrinsicValue - tradePrice };
+            });
+
+            const container = d3.select("#pnlChart");
+            container.html(''); // Clear previous chart
+
+            const width = container.node().getBoundingClientRect().width;
+            const height = 300;
+            const margin = { top: 20, right: 30, bottom: 40, left: 50 };
+
+            const svg = container.append("svg")
+                .attr("width", width)
+                .attr("height", height);
+
+            const x = d3.scaleLinear()
+                .domain(d3.extent(pnlData, d => d.spot))
+                .range([margin.left, width - margin.right]);
+
+            const y = d3.scaleLinear()
+                .domain(d3.extent(pnlData, d => d.pnl))
+                .range([height - margin.bottom, margin.top]);
+
+            // Axes
+            svg.append("g")
+                .attr("transform", `translate(0,${height - margin.bottom})`)
+                .call(d3.axisBottom(x).ticks(5).tickFormat(d3.format("$.2f")))
+                .selectAll("text")
+                .style("fill", "#9ca3af");
+            svg.append("g")
+                .attr("transform", `translate(${margin.left},0)`)
+                .call(d3.axisLeft(y).ticks(5).tickFormat(d3.format("$.2f")))
+                .selectAll("text")
+                .style("fill", "#9ca3af");
+                
+            // Axis labels
+            svg.append("text")
+                .attr("text-anchor", "middle")
+                .attr("x", width / 2)
+                .attr("y", height - 5)
+                .text("Spot Price at Expiry")
+                .style("fill", "#e5e7eb");
+
+            svg.append("text")
+                .attr("text-anchor", "middle")
+                .attr("transform", "rotate(-90)")
+                .attr("y", -margin.left + 60)
+                .attr("x", -height / 2)
+                .text("Profit / Loss ($)")
+                .style("fill", "#e5e7eb");
+
+            // Zero line
+            svg.append("line")
+                .attr("x1", margin.left)
+                .attr("x2", width - margin.right)
+                .attr("y1", y(0))
+                .attr("y2", y(0))
+                .attr("stroke", "#4b5563")
+                .attr("stroke-dasharray", "4");
+
+            // P&L line
+            svg.append("path")
+                .datum(pnlData)
+                .attr("fill", "none")
+                .attr("stroke", d => pnlData[pnlData.length-1].pnl > pnlData[0].pnl ? "#48bb78" : "#f56565")
+                .attr("stroke-width", 2.5)
+                .attr("d", d3.line()
+                    .x(d => x(d.spot))
+                    .y(d => y(d.pnl))
+                );
+        }
+
+        // Fetch stock price (mocked)
+        fetchPriceBtn.addEventListener('click', () => {
+            const ticker = tickerEl.value.toUpperCase();
+            if (!ticker) return;
+            
+            const mockPrice = (100 + Math.random() * 200).toFixed(2);
+            assetPriceEl.value = mockPrice;
+            alert(`Mock price for ${ticker} fetched: $${mockPrice}`);
+            calculateAndDisplay();
+        });
+        
+        // Event Listeners
+        [assetPriceEl, strikePriceEl, timeToMaturityEl, volatilityEl, interestRateEl].forEach(el => {
+            el.addEventListener('input', calculateAndDisplay);
+        });
+        updatePnlBtn.addEventListener('click', updatePnlChart);
+        window.addEventListener('resize', () => {
+             calculateAndDisplay(); // Recalculate to redraw charts correctly
+        });
+
+        // Initial Calculation on page load
+        calculateAndDisplay();
+    </script>
+</body>
+</html>
