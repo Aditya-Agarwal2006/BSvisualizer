@@ -4,7 +4,6 @@ from scipy.stats import norm
 import plotly
 import plotly.graph_objects as go
 
-# --- Page Configuration ---
 st.set_page_config(
     page_title="Black-Scholes Visualizer",
     page_icon="📈",
@@ -14,10 +13,7 @@ st.set_page_config(
 
 # --- Mathematical Functions ---
 def black_scholes_and_greeks(S, K, T, r, v):
-    """
-    Calculates Black-Scholes option prices and their corresponding Greeks.
-    Vectorized to handle numpy array inputs correctly.
-    """
+    
     if np.isclose(T, 0):
         call_price = np.maximum(0, S - K)
         put_price = np.maximum(0, K - S)
@@ -50,12 +46,12 @@ def black_scholes_and_greeks(S, K, T, r, v):
     call_theta = (-(S * pdf_d1 * v) / (2 * np.sqrt(T)) - r * K * np.exp(-r * T) * norm.cdf(d2)) / 365
     put_theta = (-(S * pdf_d1 * v) / (2 * np.sqrt(T)) + r * K * np.exp(-r * T) * norm.cdf(-d2)) / 365
 
-    # Handle edge case for zero volatility
+
     is_v_zero = np.isclose(v, 0)
     if np.any(is_v_zero):
         call_price = np.where(is_v_zero, np.maximum(0, S - K * np.exp(-r * T)), call_price)
         put_price = np.where(is_v_zero, np.maximum(0, K * np.exp(-r * T) - S), put_price)
-        # Greeks for zero vol are handled approximately or set to 0
+        
         call_delta = np.where(is_v_zero, 1.0 if S > K else 0.0, call_delta)
         put_delta = np.where(is_v_zero, -1.0 if S < K else 0.0, put_delta)
         gamma = np.where(is_v_zero, 0, gamma)
@@ -68,9 +64,9 @@ def black_scholes_and_greeks(S, K, T, r, v):
         'call_theta': call_theta, 'put_theta': put_theta
     }
 
-# --- Sidebar for User Inputs ---
+
 st.sidebar.header("Input Parameters")
-# Mock ticker input - does not fetch real data in this version
+
 st.sidebar.text_input("Stock Ticker (for reference)", "AAPL")
 
 S = st.sidebar.number_input("Current Asset Price ($)", min_value=0.1, value=150.0, step=1.0)
@@ -79,7 +75,7 @@ T = st.sidebar.number_input("Time to Maturity (Years)", min_value=0.01, value=0.
 v = st.sidebar.slider("Volatility (%)", min_value=1, max_value=100, value=25, step=1)
 r = st.sidebar.slider("Risk-Free Interest Rate (%)", min_value=0, max_value=20, value=2, step=1)
 
-# Convert percentages to decimals for calculations
+
 v_dec = v / 100.0
 r_dec = r / 100.0
 
@@ -87,10 +83,8 @@ r_dec = r / 100.0
 st.title("📈 Black-Scholes Option Pricing Visualizer")
 st.markdown("An interactive tool to understand option pricing, risk (the Greeks), and profit/loss scenarios.")
 
-# Calculate main values
 values = black_scholes_and_greeks(S, K, T, r_dec, v_dec)
 
-# --- Display Prices and Greeks ---
 st.header("Calculated Values")
 col1, col2 = st.columns(2)
 with col1:
@@ -113,7 +107,7 @@ with gcol2:
     st.text(f"Vega (ν):    {values['vega']:.4f}")
     st.text(f"Theta (Θ):   {values['put_theta']:.4f}")
 
-# --- Profit & Loss Visualizer ---
+
 st.header("Profit & Loss Visualizer")
 pnl_col1, pnl_col2 = st.columns([1, 2])
 with pnl_col1:
@@ -139,7 +133,7 @@ with pnl_col2:
     )
     st.plotly_chart(fig_pnl, use_container_width=True)
 
-# --- Heatmaps ---
+
 st.header("Price Sensitivity Heatmaps")
 h_col1, h_col2 = st.columns(2)
 
@@ -151,7 +145,7 @@ heatmap_values = black_scholes_and_greeks(S_grid, K, T, r_dec, v_grid)
 call_prices_grid = heatmap_values['call_price']
 put_prices_grid = heatmap_values['put_price']
 
-# Call Heatmap
+
 with h_col1:
     fig_call_hm = go.Figure(data=go.Heatmap(
         z=call_prices_grid,
@@ -168,7 +162,7 @@ with h_col1:
     )
     st.plotly_chart(fig_call_hm, use_container_width=True)
 
-# Put Heatmap
+
 with h_col2:
     fig_put_hm = go.Figure(data=go.Heatmap(
         z=put_prices_grid,
