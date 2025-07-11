@@ -49,7 +49,6 @@
             <!-- Input Controls -->
             <div class="lg:col-span-1 bg-gray-800 p-6 rounded-xl shadow-lg">
                 <h2 class="text-2xl font-semibold mb-6 text-cyan-300 border-b border-gray-700 pb-2">Parameters</h2>
-                
                 <div class="space-y-4">
                     <div>
                         <label for="ticker" class="block text-sm font-medium text-gray-300">Stock Ticker (e.g., AAPL)</label>
@@ -94,6 +93,33 @@
                         <div>
                             <p class="text-lg text-gray-400">Put Value</p>
                             <p id="putValue" class="text-3xl font-bold text-red-400">$0.00</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Option Greeks -->
+                <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <h2 class="text-2xl font-semibold mb-4 text-cyan-300 border-b border-gray-700 pb-2">Option Greeks</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Call Greeks -->
+                        <div>
+                            <h3 class="text-lg font-medium text-green-400 mb-2">Call Greeks</h3>
+                            <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                                <span class="text-gray-400">Delta (Δ):</span><span id="callDelta" class="font-mono text-white">0.0000</span>
+                                <span class="text-gray-400">Gamma (Γ):</span><span id="callGamma" class="font-mono text-white">0.0000</span>
+                                <span class="text-gray-400">Vega (ν):</span><span id="callVega" class="font-mono text-white">0.0000</span>
+                                <span class="text-gray-400">Theta (Θ):</span><span id="callTheta" class="font-mono text-white">0.0000</span>
+                            </div>
+                        </div>
+                        <!-- Put Greeks -->
+                        <div>
+                            <h3 class="text-lg font-medium text-red-400 mb-2">Put Greeks</h3>
+                            <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                                <span class="text-gray-400">Delta (Δ):</span><span id="putDelta" class="font-mono text-white">0.0000</span>
+                                <span class="text-gray-400">Gamma (Γ):</span><span id="putGamma" class="font-mono text-white">0.0000</span>
+                                <span class="text-gray-400">Vega (ν):</span><span id="putVega" class="font-mono text-white">0.0000</span>
+                                <span class="text-gray-400">Theta (Θ):</span><span id="putTheta" class="font-mono text-white">0.0000</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -150,10 +176,8 @@
         const fetchPriceBtn = document.getElementById('fetchPriceBtn');
         const updatePnlBtn = document.getElementById('updatePnlBtn');
         
-        // The URL of the Python backend
         const API_URL = 'http://127.0.0.1:5000/calculate';
 
-        // Main Calculation and Update Function
         async function calculateAndDisplay() {
             const payload = {
                 assetPrice: parseFloat(assetPriceEl.value),
@@ -163,83 +187,71 @@
                 interestRate: parseFloat(interestRateEl.value),
             };
 
-            // Validate that all inputs are numbers
             if (Object.values(payload).some(isNaN)) {
-                callValueEl.textContent = '$--';
-                putValueEl.textContent = '$--';
                 return;
             }
 
             try {
-                // Send the parameters to the Python backend
                 const response = await fetch(API_URL, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),
                 });
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                // Get the calculated data back from the server
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const data = await response.json();
 
-                // Update the UI with the received data
+                // Update Prices
                 callValueEl.textContent = `$${data.callValue.toFixed(2)}`;
                 putValueEl.textContent = `$${data.putValue.toFixed(2)}`;
                 
+                // Update Greeks
+                document.getElementById('callDelta').textContent = data.greeks.call_delta.toFixed(4);
+                document.getElementById('callGamma').textContent = data.greeks.gamma.toFixed(4);
+                document.getElementById('callVega').textContent = data.greeks.vega.toFixed(4);
+                document.getElementById('callTheta').textContent = data.greeks.call_theta.toFixed(4);
+
+                document.getElementById('putDelta').textContent = data.greeks.put_delta.toFixed(4);
+                document.getElementById('putGamma').textContent = data.greeks.gamma.toFixed(4);
+                document.getElementById('putVega').textContent = data.greeks.vega.toFixed(4);
+                document.getElementById('putTheta').textContent = data.greeks.put_theta.toFixed(4);
+
+                // Update Visualizations
                 createHeatmap('#callHeatmap', data.callHeatmap, 'green');
                 createHeatmap('#putHeatmap', data.putHeatmap, 'red');
                 updatePnlChart();
 
             } catch (error) {
                 console.error("Error fetching data from backend:", error);
-                alert("Could not connect to the Python backend. Make sure it's running and that there are no CORS errors in the console.");
-                callValueEl.textContent = 'Error';
-                putValueEl.textContent = 'Error';
+                alert("Could not connect to the Python backend. Make sure it's running.");
             }
         }
 
-        // Heatmap Generation (D3.js)
         function createHeatmap(containerId, data, color) {
             const container = d3.select(containerId);
-            container.html(''); // Clear previous heatmap
+            container.html(''); 
 
             const maxPrice = d3.max(data, d => d.price);
             const colorScale = d3.scaleLinear()
                 .domain([0, maxPrice])
                 .range(['#1a202c', color === 'green' ? '#48bb78' : '#f56565']);
 
-            // Reuse or create the tooltip
             let tooltip = d3.select('body').select('.heatmap-cell-tooltip');
             if (tooltip.empty()) {
-                tooltip = d3.select('body').append('div')
-                    .attr('class', 'heatmap-cell-tooltip');
+                tooltip = d3.select('body').append('div').attr('class', 'heatmap-cell-tooltip');
             }
 
-            container.selectAll('div')
-                .data(data)
-                .enter()
-                .append('div')
+            container.selectAll('div').data(data).enter().append('div')
                 .attr('class', 'heatmap-cell')
                 .style('background-color', d => colorScale(d.price))
                 .on('mouseover', (event, d) => {
                     tooltip.style('display', 'block')
                            .html(`Spot: $${d.S.toFixed(2)}<br>Vol: ${(d.v * 100).toFixed(2)}%<br>Price: $${d.price.toFixed(2)}`);
                 })
-                .on('mousemove', (event) => {
-                    tooltip.style('left', (event.pageX + 10) + 'px')
-                           .style('top', (event.pageY - 20) + 'px');
-                })
-                .on('mouseout', () => {
-                    tooltip.style('display', 'none');
-                });
+                .on('mousemove', (event) => tooltip.style('left', (event.pageX + 10) + 'px').style('top', (event.pageY - 20) + 'px'))
+                .on('mouseout', () => tooltip.style('display', 'none'));
         }
         
-        // P&L Chart (D3.js)
         function updatePnlChart() {
             const S_base = parseFloat(assetPriceEl.value);
             const K = parseFloat(strikePriceEl.value);
@@ -253,104 +265,47 @@
 
             const spotRange = Array.from({ length: 101 }, (_, i) => S_base * (0.7 + (i / 100) * 0.6));
             const pnlData = spotRange.map(S_at_expiry => {
-                let intrinsicValue = 0;
-                if (tradeType === 'call') {
-                    intrinsicValue = Math.max(0, S_at_expiry - K);
-                } else { // put
-                    intrinsicValue = Math.max(0, K - S_at_expiry);
-                }
+                let intrinsicValue = (tradeType === 'call') ? Math.max(0, S_at_expiry - K) : Math.max(0, K - S_at_expiry);
                 return { spot: S_at_expiry, pnl: intrinsicValue - tradePrice };
             });
 
             const container = d3.select("#pnlChart");
-            container.html(''); // Clear previous chart
+            container.html('');
 
             const width = container.node().getBoundingClientRect().width;
             const height = 300;
             const margin = { top: 20, right: 30, bottom: 40, left: 50 };
 
-            const svg = container.append("svg")
-                .attr("width", width)
-                .attr("height", height);
+            const svg = container.append("svg").attr("width", width).attr("height", height);
 
-            const x = d3.scaleLinear()
-                .domain(d3.extent(pnlData, d => d.spot))
-                .range([margin.left, width - margin.right]);
+            const x = d3.scaleLinear().domain(d3.extent(pnlData, d => d.spot)).range([margin.left, width - margin.right]);
+            const y = d3.scaleLinear().domain(d3.extent(pnlData, d => d.pnl)).range([height - margin.bottom, margin.top]);
 
-            const y = d3.scaleLinear()
-                .domain(d3.extent(pnlData, d => d.pnl))
-                .range([height - margin.bottom, margin.top]);
+            svg.append("g").attr("transform", `translate(0,${height - margin.bottom})`).call(d3.axisBottom(x).ticks(5).tickFormat(d3.format("$.2f"))).selectAll("text").style("fill", "#9ca3af");
+            svg.append("g").attr("transform", `translate(${margin.left},0)`).call(d3.axisLeft(y).ticks(5).tickFormat(d3.format("$.2f"))).selectAll("text").style("fill", "#9ca3af");
+            
+            svg.append("text").attr("text-anchor", "middle").attr("x", width / 2).attr("y", height - 5).text("Spot Price at Expiry").style("fill", "#e5e7eb");
+            svg.append("text").attr("text-anchor", "middle").attr("transform", "rotate(-90)").attr("y", -margin.left + 60).attr("x", -height / 2).text("Profit / Loss ($)").style("fill", "#e5e7eb");
 
-            // Axes
-            svg.append("g")
-                .attr("transform", `translate(0,${height - margin.bottom})`)
-                .call(d3.axisBottom(x).ticks(5).tickFormat(d3.format("$.2f")))
-                .selectAll("text")
-                .style("fill", "#9ca3af");
-            svg.append("g")
-                .attr("transform", `translate(${margin.left},0)`)
-                .call(d3.axisLeft(y).ticks(5).tickFormat(d3.format("$.2f")))
-                .selectAll("text")
-                .style("fill", "#9ca3af");
-                
-            // Axis labels
-            svg.append("text")
-                .attr("text-anchor", "middle")
-                .attr("x", width / 2)
-                .attr("y", height - 5)
-                .text("Spot Price at Expiry")
-                .style("fill", "#e5e7eb");
+            svg.append("line").attr("x1", margin.left).attr("x2", width - margin.right).attr("y1", y(0)).attr("y2", y(0)).attr("stroke", "#4b5563").attr("stroke-dasharray", "4");
 
-            svg.append("text")
-                .attr("text-anchor", "middle")
-                .attr("transform", "rotate(-90)")
-                .attr("y", -margin.left + 60)
-                .attr("x", -height / 2)
-                .text("Profit / Loss ($)")
-                .style("fill", "#e5e7eb");
-
-            // Zero line
-            svg.append("line")
-                .attr("x1", margin.left)
-                .attr("x2", width - margin.right)
-                .attr("y1", y(0))
-                .attr("y2", y(0))
-                .attr("stroke", "#4b5563")
-                .attr("stroke-dasharray", "4");
-
-            // P&L line
-            svg.append("path")
-                .datum(pnlData)
-                .attr("fill", "none")
-                .attr("stroke", d => pnlData[pnlData.length-1].pnl > pnlData[0].pnl ? "#48bb78" : "#f56565")
-                .attr("stroke-width", 2.5)
-                .attr("d", d3.line()
-                    .x(d => x(d.spot))
-                    .y(d => y(d.pnl))
-                );
+            svg.append("path").datum(pnlData).attr("fill", "none").attr("stroke", pnlData[pnlData.length-1].pnl > pnlData[0].pnl ? "#48bb78" : "#f56565").attr("stroke-width", 2.5)
+                .attr("d", d3.line().x(d => x(d.spot)).y(d => y(d.pnl)));
         }
 
-        // Fetch stock price (mocked)
         fetchPriceBtn.addEventListener('click', () => {
             const ticker = tickerEl.value.toUpperCase();
             if (!ticker) return;
-            
             const mockPrice = (100 + Math.random() * 200).toFixed(2);
             assetPriceEl.value = mockPrice;
             alert(`Mock price for ${ticker} fetched: $${mockPrice}`);
             calculateAndDisplay();
         });
         
-        // Event Listeners
-        [assetPriceEl, strikePriceEl, timeToMaturityEl, volatilityEl, interestRateEl].forEach(el => {
-            el.addEventListener('input', calculateAndDisplay);
-        });
+        [assetPriceEl, strikePriceEl, timeToMaturityEl, volatilityEl, interestRateEl].forEach(el => el.addEventListener('input', calculateAndDisplay));
         updatePnlBtn.addEventListener('click', updatePnlChart);
-        window.addEventListener('resize', () => {
-             calculateAndDisplay(); // Recalculate to redraw charts correctly
-        });
+        window.addEventListener('resize', calculateAndDisplay);
 
-        // Initial Calculation on page load
         calculateAndDisplay();
     </script>
 </body>
