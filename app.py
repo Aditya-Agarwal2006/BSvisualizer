@@ -67,13 +67,11 @@ def black_scholes_and_greeks(S, K, T, r, v):
 
 st.sidebar.header("Input Parameters")
 
-st.sidebar.text_input("Stock Ticker (for reference)", "AAPL")
-
 S = st.sidebar.number_input("Current Asset Price ($)", min_value=0.1, value=150.0, step=1.0)
 K = st.sidebar.number_input("Strike Price ($)", min_value=0.1, value=155.0, step=1.0)
 T = st.sidebar.number_input("Time to Maturity (Years)", min_value=0.01, value=0.25, step=0.01)
-v = st.sidebar.slider("Volatility (%)", min_value=1, max_value=100, value=25, step=1)
-r = st.sidebar.slider("Risk-Free Interest Rate (%)", min_value=0, max_value=20, value=2, step=1)
+v = st.sidebar.number_input("Volatility (%)", min_value=0.1, max_value=100.0, value=25.0, step=0.1)
+r = st.sidebar.number_input("Risk-Free Interest Rate (%)", min_value=0.0, max_value=20.0, value=2.0, step=0.1)
 
 
 v_dec = v / 100.0
